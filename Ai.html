@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Bot with SiA.Ai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container {
+            height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 p-4">
+     <!-- Logout Button -->
+     <button id="logout-btn" 
+     class="absolute w-32 bg-red-500 text-white py-2 rounded-lg mb-4 hover:bg-red-600 transition-colors"
+     onclick="logout()">
+ Logout
+</button>
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+           
+            
+            <h1 class="text-3xl font-bold mb-4 text-center text-gray-800">AI Chat Bot with Vision</h1>
+            
+            
+
+            <div class="chat-container bg-gray-50 rounded-lg p-4 mb-4">
+                <div id="chat-messages" class="space-y-4">
+                    <!-- Initial AI message -->
+                    <div class="flex items-start mb-4">
+                        <div class="flex-shrink-0 bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-white">
+                            AI
+                        </div>
+                        <div class="ml-3 bg-blue-100 p-3 rounded-lg shadow">
+                            <p class="text-gray-800">Hello! How can I help you today? </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Form -->
+            <form id="chat-form" class="flex flex-col gap-2">
+                <input type="text" id="user-input" class="p-2 border rounded-lg focus:outline-none focus:border-blue-500" placeholder="Type your message..." required>
+                <div class="flex gap-2">
+                    <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">Send</button>
+                    <button type="button" onclick="clearChat()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">Clear</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript code for chat functionality -->
+    <script type="module">
+        import { HfInference } from "https://cdn.jsdelivr.net/npm/@huggingface/inference@latest/+esm";
+
+        // Replace with your actual Hugging Face API key
+        const HF_API_KEY = "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";
+        const MODEL_NAME = "meta-llama/Llama-3.2-11B-Vision-Instruct";
+        const client = new HfInference(HF_API_KEY);
+
+        const chatMessages = document.getElementById("chat-messages");
+        const chatForm = document.getElementById("chat-form");
+        const userInput = document.getElementById("user-input");
+
+        // Function to append messages to the chat display
+        function appendMessage(content, isUser = false) {
+            const messageDiv = document.createElement("div");
+            messageDiv.className = "flex items-start mb-4";
+
+            const avatar = document.createElement("div");
+            avatar.className = `flex-shrink-0 ${isUser ? "bg-green-500" : "bg-blue-500"} rounded-full w-8 h-8 flex items-center justify-center text-white`;
+            avatar.textContent = isUser ? "You" : "AI";
+
+            const messageContent = document.createElement("div");
+            messageContent.className = `ml-3 ${isUser ? "bg-green-100" : "bg-blue-100"} p-3 rounded-lg shadow`;
+
+            const text = document.createElement("p");
+            text.className = "text-gray-800";
+            text.textContent = content;
+
+            messageContent.appendChild(text);
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(messageContent);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Clear chat messages
+        function clearChat() {
+            chatMessages.innerHTML = "";
+            appendMessage("Hello! How can I assist you today? ", false);
+        }
+
+        // Function to get a response from the Hugging Face API
+        async function getChatResponse(message) {
+            const content = [
+                { type: "text", text: message }
+            ];
+
+            try {
+                const stream = client.chatCompletionStream({
+                    model: MODEL_NAME,
+                    messages: [
+                        {
+                            role: "user",
+                            content: content
+                        }
+                    ],
+                    max_tokens: 500
+                });
+
+                let output = "";  // Collect the response in this variable
+
+                // Iterate through the streamed response
+                for await (const chunk of stream) {
+                    if (chunk.choices && chunk.choices.length > 0) {
+                        const newContent = chunk.choices[0].delta.content;
+                        output += newContent;  // Add each chunk to the output variable
+                    }
+                }
+                
+                appendMessage(output, false);  // Append the complete response once all chunks are received
+                return output;
+
+            } catch (error) {
+                console.error("Error:", error);
+                appendMessage("An error occurred while fetching the response.");
+            }
+        }
+
+        // Submit event handler
+        chatForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const message = userInput.value.trim();
+
+            if (!message) return;
+
+            appendMessage(message, true);
+            userInput.value = "";
+
+            const loadingMessage = document.createElement("div");
+            loadingMessage.className = "flex items-start mb-4";
+            loadingMessage.innerHTML = `
+                <div class="flex-shrink-0 bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-white">
+                    AI
+                </div>
+                <div class="ml-3 bg-blue-100 p-3 rounded-lg shadow">
+                    <p class="text-gray-800">Thinking...</p>
+                </div>
+            `;
+            chatMessages.appendChild(loadingMessage);
+
+            await getChatResponse(message);
+            chatMessages.removeChild(loadingMessage);
+        });
+
+        
+    </script>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
